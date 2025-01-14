@@ -164,3 +164,7 @@ cython_debug/
 #.idea/
 hf_models/*
 *.pkl
+*.png
+efficient-prompt-to-prompt/*
+*.txt
+*.ipynb

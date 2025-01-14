@@ -1,4 +1,7 @@
 import os
+import os
+# 设置 OpenMP 最大活动级别
+os.environ["OMP_MAX_ACTIVE_LEVELS"] = "1"
 import argparse
 import torch
 import pickle
@@ -16,7 +19,8 @@ from inversion import stable_diffusion_pipe, generate
 parser = argparse.ArgumentParser('Args')
 parser.add_argument('--test_num', type=int, default=10)
 parser.add_argument('--method', type=str, default='prc') # gs, tr, prc
-parser.add_argument('--model_id', type=str, default='stabilityai/stable-diffusion-2-1-base')
+parser.add_argument('--model_id', type=str, default='runwayml/stable-diffusion-v1-5')
+# parser.add_argument('--model_id', type=str, default='stabilityai/stable-diffusion-2-1-base')
 parser.add_argument('--dataset_id', type=str, default='Gustavosta/Stable-Diffusion-Prompts') # coco 
 parser.add_argument('--inf_steps', type=int, default=50)
 parser.add_argument('--nowm', type=int, default=0)
@@ -26,7 +30,8 @@ args = parser.parse_args()
 print(args)
 
 hf_cache_dir = 'hf_models'
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+# device = 'cuda' if torch.cuda.is_available() else 'cpu'
+device = 'mps' if torch.backends.mps.is_available() else 'cpu'
 n = 4 * 64 * 64  # the length of a PRC codeword
 method = args.method
 test_num = args.test_num
@@ -87,15 +92,17 @@ else:
 
 prompts = random.sample(all_prompts, test_num)
 
+
 pipe = stable_diffusion_pipe(solver_order=1, model_id=model_id, cache_dir=hf_cache_dir)
 pipe.set_progress_bar_config(disable=True)
+pipe.to(device)
 
 def seed_everything(seed, workers=False):
     os.environ["PL_GLOBAL_SEED"] = str(seed)
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
+    torch.mps.manual_seed(seed)
     os.environ["PL_SEED_WORKERS"] = f"{int(workers)}"
     return seed
 
@@ -105,16 +112,18 @@ for i in tqdm(range(test_num)):
     current_prompt = prompts[i]
     if nowm:
         init_latents_np = np.random.randn(1, 4, 64, 64)
-        init_latents = torch.from_numpy(init_latents_np).to(torch.float64).to(device)
+        init_latents = torch.from_numpy(init_latents_np).to(torch.float32).to(device)
     else:
         if method == 'prc':
-            prc_codeword = Encode(encoding_key)
-            init_latents = prc_gaussians.sample(prc_codeword).reshape(1, 4, 64, 64).to(device)
+            fixed_message = str_to_bin("Hello, world!")
+            prc_codeword = Encode(encoding_key, fixed_message)
+            init_latents = prc_gaussians.sample(prc_codeword).reshape(1, 4, 64, 64).to(torch.float32).to(device)
         elif method == 'gs':
-            init_latents = gs_watermark.truncSampling(watermark_m)
+            init_latents = gs_watermark.truncSampling(watermark_m).to(torch.float32).to(device)
         elif method == 'tr':
             shape = (1, 4, 64, 64)
             init_latents, _, _ = tr_get_noise(shape, from_file=tr_key, keys_path='keys/')
+            init_latents = init_latents.to(torch.float32).to(device)
         else:
             raise NotImplementedError
     orig_image, _, _ = generate(prompt=current_prompt,
@@ -123,6 +132,7 @@ for i in tqdm(range(test_num)):
                                 solver_order=1,
                                 pipe=pipe
                                 )
+    print(f"Generating image {i+1}/{test_num} with prompt: {current_prompt}")
     orig_image.save(f'{save_folder}/{i}.png')
 
 print(f'Done generating {method} images')

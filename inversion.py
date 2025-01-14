@@ -7,11 +7,11 @@ from src.optim_utils import set_random_seed, transform_img, get_dataset
 
 def stable_diffusion_pipe(
         solver_order=1,
-        model_id='stabilityai/stable-diffusion-2-1-base',
+        # model_id='stabilityai/stable-diffusion-2-1-base',
+        model_id='runwayml/stable-diffusion-v1-5',      
         cache_dir='hf_models',
 ):
-    # load stable diffusion pipeline
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = 'mps' if torch.backends.mps.is_available() else 'cpu'
     scheduler = DPMSolverMultistepScheduler(
         beta_end=0.012,
         beta_schedule='scaled_linear',
@@ -41,13 +41,15 @@ def generate(
         solver_order=1,
         image_length=512,
         datasets='Gustavosta/Stable-Diffusion-Prompts',
-        model_id='stabilityai/stable-diffusion-2-1-base',
+        # model_id='stabilityai/stable-diffusion-2-1-base',
+        model_id='runwayml/stable-diffusion-v1-5',
         gen_seed=0,
         pipe=None,
         init_latents=None,
 ):
     # load stable diffusion pipeline
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    # device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = 'mps' if torch.backends.mps.is_available() else 'cpu'
     if pipe is None:
         scheduler = DPMSolverMultistepScheduler(
             beta_end=0.012,
@@ -101,11 +103,13 @@ def exact_inversion(
         test_num_inference_steps=50,
         inv_order=1,
         decoder_inv=True,
-        model_id='stabilityai/stable-diffusion-2-1-base',
+        # model_id='stabilityai/stable-diffusion-2-1-base',
+        model_id='runwayml/stable-diffusion-v1-5',
         pipe=None,
 ):
     # load stable diffusion pipeline
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    # device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = 'mps' if torch.backends.mps.is_available() else 'cpu'
     if pipe is None:
         scheduler = DPMSolverMultistepScheduler(
             beta_end=0.012,
@@ -126,7 +130,7 @@ def exact_inversion(
 
     # prompt to text embeddings
     text_embeddings_tuple = pipe.encode_prompt(
-        prompt, 'cuda', 1, guidance_scale > 1.0, None
+        prompt, 'mps', 1, guidance_scale > 1.0, None
     )
     text_embeddings = torch.cat([text_embeddings_tuple[1], text_embeddings_tuple[0]])
 

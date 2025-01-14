@@ -8,14 +8,15 @@ import pickle
 import torch
 from PIL import Image
 from tqdm import tqdm
-from src.prc import Detect, Decode
+from src.prc import Detect, Decode, bin_to_str
 import src.pseudogaussians as prc_gaussians
 from inversion import stable_diffusion_pipe, exact_inversion
 
 parser = argparse.ArgumentParser('Args')
 parser.add_argument('--test_num', type=int, default=10)
 parser.add_argument('--method', type=str, default='prc') # gs, tr, prc
-parser.add_argument('--model_id', type=str, default='stabilityai/stable-diffusion-2-1-base')
+# parser.add_argument('--model_id', type=str, default='stabilityai/stable-diffusion-2-1-base')
+parser.add_argument('--model_id', type=str, default='runwayml/stable-diffusion-v1-5')
 parser.add_argument('--dataset_id', type=str, default='Gustavosta/Stable-Diffusion-Prompts')
 parser.add_argument('--inf_steps', type=int, default=50)
 parser.add_argument('--nowm', type=int, default=0)
@@ -27,7 +28,7 @@ args = parser.parse_args()
 print(args)
 
 hf_cache_dir = 'hf_models'
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+device = 'mps' if torch.backends.mps.is_available() else 'cpu'
 n = 4 * 64 * 64  # the length of a PRC codeword
 method = args.method
 test_num = args.test_num
@@ -55,9 +56,10 @@ for i in tqdm(range(test_num)):
                                        inv_order=cur_inv_order,
                                        pipe=pipe
                                        )
-    reversed_prc = prc_gaussians.recover_posteriors(reversed_latents.to(torch.float64).flatten().cpu(), variances=float(var)).flatten().cpu()
+    reversed_prc = prc_gaussians.recover_posteriors(reversed_latents.to(torch.float32).flatten().to(device), variances=float(var)).flatten().to(device)
     detection_result = Detect(decoding_key, reversed_prc)
-    decoding_result = (Decode(decoding_key, reversed_prc) is not None)
+
+    decoding_result = bin_to_str(Decode(decoding_key, reversed_prc))
     combined_result = detection_result or decoding_result
     combined_results.append(combined_result)
     print(f'{i:03d}: Detection: {detection_result}; Decoding: {decoding_result}; Combined: {combined_result}')

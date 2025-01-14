@@ -176,11 +176,11 @@ def Decode(decoding_key, posteriors, print_progress=False, max_bp_iter=None):
     top_invertible_rows = boolean_row_reduce(ordered_generator_matrix, print_progress=print_progress)
     if top_invertible_rows is None:
         return None
-
+    ordered_x_decoded_int = ordered_x_decoded.astype(np.int64)
     # Solve the system.
     if print_progress:
         print("Solving linear system...")
-    recovered_string = np.linalg.solve(ordered_generator_matrix[top_invertible_rows], GF(ordered_x_decoded[top_invertible_rows]))
+    recovered_string = np.linalg.solve(ordered_generator_matrix[top_invertible_rows], GF(ordered_x_decoded_int[top_invertible_rows]))
 
     if not (recovered_string[:len(test_bits)] == test_bits).all():
         return None
