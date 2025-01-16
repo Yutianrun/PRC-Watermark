@@ -8,7 +8,8 @@ from Crypto.Random import get_random_bytes
 
 
 class Gaussian_Shading_chacha:
-    def __init__(self, ch_factor, hw_factor, fpr, user_number):
+    def __init__(self, ch_factor, hw_factor, fpr, user_number, device=None):
+        self.device = device or ('cuda' if torch.cuda.is_available() else self.device if torch.backends.mps.is_available() else 'cpu')
         self.ch = ch_factor
         self.hw = hw_factor
         self.nonce = None
@@ -40,6 +41,7 @@ class Gaussian_Shading_chacha:
         return m_bit
 
     def truncSampling(self, message):
+
         z = np.zeros(self.latentlength)
         denominator = 2.0
         ppf = [norm.ppf(j / denominator) for j in range(int(denominator) + 1)]
@@ -48,10 +50,10 @@ class Gaussian_Shading_chacha:
             dec_mes = int(dec_mes)
             z[i] = truncnorm.rvs(ppf[dec_mes], ppf[dec_mes + 1])
         z = torch.from_numpy(z).reshape(1, 4, 64, 64).half()
-        return z.to('mps')
+        return z.to(self.device)
 
     def create_watermark_and_return_w(self):
-        self.watermark = torch.randint(0, 2, [1, 4 // self.ch, 64 // self.hw, 64 // self.hw]).to('mps')
+        self.watermark = torch.randint(0, 2, [1, 4 // self.ch, 64 // self.hw, 64 // self.hw]).to(self.device)
         sd = self.watermark.repeat(1, self.ch, self.hw, self.hw)
         m = self.stream_key_encrypt(sd.flatten().cpu().numpy())
         # w = self.truncSampling(m)
@@ -63,7 +65,7 @@ class Gaussian_Shading_chacha:
         sd_byte = cipher.decrypt(np.packbits(reversed_m).tobytes())
         sd_bit = np.unpackbits(np.frombuffer(sd_byte, dtype=np.uint8))
         sd_tensor = torch.from_numpy(sd_bit).reshape(1, 4, 64, 64).to(torch.uint8)
-        return sd_tensor.to('mps')
+        return sd_tensor.to(self.device)
 
     def diffusion_inverse(self, watermark_r):
         ch_stride = 4 // self.ch
@@ -97,7 +99,7 @@ class Gaussian_Shading_chacha:
         sd_bit = np.unpackbits(np.frombuffer(sd_byte, dtype=np.uint8))
         sd_tensor = torch.from_numpy(sd_bit).reshape(1, 4, 64, 64).to(torch.uint8)
 
-        reversed_sd = sd_tensor.to('mps')
+        reversed_sd = sd_tensor.to(self.device)
         reversed_watermark = self.diffusion_inverse(reversed_sd)
         correct = (reversed_watermark == f_watermark).float().mean().item()
         if correct >= self.tau_onebit:
@@ -142,11 +144,11 @@ class Gaussian_Shading:
             dec_mes = int(dec_mes)
             z[i] = truncnorm.rvs(ppf[dec_mes], ppf[dec_mes + 1])
         z = torch.from_numpy(z).reshape(1, 4, 64, 64).half()
-        return z.to('mps')
+        return z.to(self.device)
 
     def create_watermark_and_return_w(self):
-        self.key = torch.randint(0, 2, [1, 4, 64, 64]).to('mps')
-        self.watermark = torch.randint(0, 2, [1, 4 // self.ch, 64 // self.hw, 64 // self.hw]).to('mps')
+        self.key = torch.randint(0, 2, [1, 4, 64, 64]).to(self.device)
+        self.watermark = torch.randint(0, 2, [1, 4 // self.ch, 64 // self.hw, 64 // self.hw]).to(self.device)
         sd = self.watermark.repeat(1, self.ch, self.hw, self.hw)
         m = ((sd + self.key) % 2).flatten().cpu().numpy()
         # w = self.truncSampling(m)

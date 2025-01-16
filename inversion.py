@@ -11,7 +11,7 @@ def stable_diffusion_pipe(
         model_id='runwayml/stable-diffusion-v1-5',      
         cache_dir='hf_models',
 ):
-    device = 'mps' if torch.backends.mps.is_available() else 'cpu'
+    device = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
     scheduler = DPMSolverMultistepScheduler(
         beta_end=0.012,
         beta_schedule='scaled_linear',
@@ -49,7 +49,7 @@ def generate(
 ):
     # load stable diffusion pipeline
     # device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    device = 'mps' if torch.backends.mps.is_available() else 'cpu'
+    device = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
     if pipe is None:
         scheduler = DPMSolverMultistepScheduler(
             beta_end=0.012,
@@ -109,7 +109,7 @@ def exact_inversion(
 ):
     # load stable diffusion pipeline
     # device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    device = 'mps' if torch.backends.mps.is_available() else 'cpu'
+    device = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
     if pipe is None:
         scheduler = DPMSolverMultistepScheduler(
             beta_end=0.012,
@@ -130,7 +130,7 @@ def exact_inversion(
 
     # prompt to text embeddings
     text_embeddings_tuple = pipe.encode_prompt(
-        prompt, 'mps', 1, guidance_scale > 1.0, None
+        prompt, device, 1, guidance_scale > 1.0, None
     )
     text_embeddings = torch.cat([text_embeddings_tuple[1], text_embeddings_tuple[0]])
 

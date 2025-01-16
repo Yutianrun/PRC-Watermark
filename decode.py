@@ -28,7 +28,7 @@ args = parser.parse_args()
 print(args)
 
 hf_cache_dir = 'hf_models'
-device = 'mps' if torch.backends.mps.is_available() else 'cpu'
+device = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
 n = 4 * 64 * 64  # the length of a PRC codeword
 method = args.method
 test_num = args.test_num
